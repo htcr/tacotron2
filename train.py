@@ -10,11 +10,16 @@ import torch.distributed as dist
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data import DataLoader
 
-from model import Tacotron2
-from data_utils import TextMelLoader, TextMelCollate
+from model import Tacotron2, Tacotron2GST
+from data_utils import TextMelLoader, TextMelCollate, VoxCeleb1TextMelLoader
 from loss_function import Tacotron2Loss
 from logger import Tacotron2Logger
 from hparams import create_hparams
+
+import sys
+sys.path.append('waveglow/')
+import numpy as np
+from text import text_to_sequence
 
 
 def reduce_tensor(tensor, n_gpus):
@@ -42,7 +47,9 @@ def init_distributed(hparams, n_gpus, rank, group_name):
 def prepare_dataloaders(hparams):
     # Get data, data loaders and collate function ready
     trainset = TextMelLoader(hparams.training_files, hparams)
+    # trainset = VoxCeleb1TextMelLoader(hparams, train_set=True)
     valset = TextMelLoader(hparams.validation_files, hparams)
+    # valset = VoxCeleb1TextMelLoader(hparams, train_set=False)
     collate_fn = TextMelCollate(hparams.n_frames_per_step)
 
     if hparams.distributed_run:
@@ -71,7 +78,10 @@ def prepare_directories_and_logger(output_directory, log_directory, rank):
 
 
 def load_model(hparams):
-    model = Tacotron2(hparams).cuda()
+    if hparams.use_gst:
+        model = Tacotron2GST(hparams).cuda()
+    else:
+        model = Tacotron2(hparams).cuda()
     if hparams.fp16_run:
         model.decoder.attention_layer.score_mask_value = finfo('float16').min
 
@@ -119,7 +129,7 @@ def save_checkpoint(model, optimizer, learning_rate, iteration, filepath):
 
 
 def validate(model, criterion, valset, iteration, batch_size, n_gpus,
-             collate_fn, logger, distributed_run, rank):
+             collate_fn, logger, distributed_run, rank, waveglow=None, sampling_rate=None, hparams=None):
     """Handles all the validation scoring and printing"""
     model.eval()
     with torch.no_grad():
@@ -140,10 +150,55 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
             val_loss += reduced_val_loss
         val_loss = val_loss / (i + 1)
 
+    # Additional validation without teacher-forcing input
+    if rank == 0 and waveglow is not None:
+        if not hparams.use_gst:
+            assert sampling_rate is not None
+            print("Validating sentence without teacher-forcing input")
+            
+            text = "We have been trying all possible solutions but none of them seemed to work."
+            sequence = np.array(text_to_sequence(text, ['english_cleaners']))[None, :]
+            sequence = torch.autograd.Variable(torch.from_numpy(sequence)).cuda().long()
+            mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequence)
+            with torch.no_grad():
+                audio = waveglow.infer(mel_outputs_postnet, sigma=0.666)
+            audio_np = audio[0].data.cpu().numpy() 
+            logger.log_audio(audio_np, sampling_rate, iteration)
+        else:
+            assert sampling_rate is not None
+            print("Validating sentence without teacher-forcing input and using GST")
+            
+            text = "We have been trying all possible solutions but none of them seemed to work."
+            sequence = np.array(text_to_sequence(text, ['english_cleaners']))[None, :]
+            sequence = torch.autograd.Variable(torch.from_numpy(sequence)).cuda().long()
+            
+            # super dirty!!! pick a sample mel
+            mels = x[2]
+            lens = x[4]
+            picked_mel = mels[0:1][:, :, :lens[0]].half() # (1, Nmel, L)
+            
+            
+            mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequence, picked_mel)
+            with torch.no_grad():
+                audio = waveglow.infer(mel_outputs_postnet, sigma=0.666)
+                audio_ref = waveglow.infer(picked_mel, sigma=0.666)
+            audio_np = audio[0].data.cpu().numpy() 
+            logger.log_audio(audio_np, sampling_rate, iteration)
+            logger.log_audio(audio_ref[0].data.cpu().numpy(), sampling_rate, iteration, 'reference_audio')
+
     model.train()
     if rank == 0:
         print("Validation loss {}: {:9f}  ".format(iteration, val_loss))
         logger.log_validation(val_loss, model, y, y_pred, iteration)
+
+
+def load_waveglow():
+    waveglow_path = 'waveglow_256channels_ljs_v2.pt'
+    waveglow = torch.load(waveglow_path)['model']
+    waveglow.cuda().eval().half()
+    for k in waveglow.convinv:
+        k.float()
+    return waveglow
 
 
 def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
@@ -164,6 +219,9 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
 
     torch.manual_seed(hparams.seed)
     torch.cuda.manual_seed(hparams.seed)
+
+    # load waveglow for validation
+    waveglow = load_waveglow()
 
     model = load_model(hparams)
     learning_rate = hparams.learning_rate
@@ -237,15 +295,15 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
 
             if not is_overflow and rank == 0:
                 duration = time.perf_counter() - start
-                print("Train loss {} {:.6f} Grad Norm {:.6f} {:.2f}s/it".format(
-                    iteration, reduced_loss, grad_norm, duration))
+                print("Train loss {} {:.6f} p {:.6f} Grad Norm {:.6f} {:.2f}s/it".format(
+                    iteration, reduced_loss, model.decoder.student_input_prob, grad_norm, duration))
                 logger.log_training(
-                    reduced_loss, grad_norm, learning_rate, duration, iteration)
+                    reduced_loss, model.decoder.student_input_prob, grad_norm, learning_rate, duration, iteration)
 
             if not is_overflow and (iteration % hparams.iters_per_checkpoint == 0):
                 validate(model, criterion, valset, iteration,
                          hparams.batch_size, n_gpus, collate_fn, logger,
-                         hparams.distributed_run, rank)
+                         hparams.distributed_run, rank, waveglow, hparams.sampling_rate, hparams)
                 if rank == 0:
                     checkpoint_path = os.path.join(
                         output_directory, "checkpoint_{}".format(iteration))
@@ -253,6 +311,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
                                     checkpoint_path)
 
             iteration += 1
+            model.decoder.update_student_input_prob(iteration)
 
 
 if __name__ == '__main__':

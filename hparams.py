@@ -2,6 +2,8 @@ import tensorflow as tf
 from text import symbols
 
 
+E = 256
+
 def create_hparams(hparams_string=None, verbose=False):
     """Create model hyperparameters. Parse nondefault from given string."""
 
@@ -25,15 +27,21 @@ def create_hparams(hparams_string=None, verbose=False):
         # Data Parameters             #
         ################################
         load_mel_from_disk=False,
-        training_files='filelists/ljs_audio_text_train_filelist.txt',
-        validation_files='filelists/ljs_audio_text_val_filelist.txt',
+        # training_files='filelists/vox1_m_0.90_15.0s_train.txt',
+        # validation_files='filelists/vox1_m_0.90_15.0s_test.txt',
+        # training_files='filelists/ljs_audio_text_train_filelist.txt',
+        # validation_files='filelists/ljs_audio_text_val_filelist.txt',
+        training_files='filelists/lrs3_pretrain_train.txt',
+        validation_files='filelists/lrs3_pretrain_test.txt',
+        
         text_cleaners=['english_cleaners'],
 
         ################################
         # Audio Parameters             #
         ################################
         max_wav_value=32768.0,
-        sampling_rate=22050,
+        # sampling_rate=22050,
+        sampling_rate=16000,
         filter_length=1024,
         hop_length=256,
         win_length=1024,
@@ -53,7 +61,7 @@ def create_hparams(hparams_string=None, verbose=False):
         encoder_embedding_dim=512,
 
         # Decoder parameters
-        n_frames_per_step=1,  # currently only 1 is supported
+        n_frames_per_step=2,  # currently only 1 is supported
         decoder_rnn_dim=1024,
         prenet_dim=256,
         max_decoder_steps=1000,
@@ -78,11 +86,24 @@ def create_hparams(hparams_string=None, verbose=False):
         # Optimization Hyperparameters #
         ################################
         use_saved_learning_rate=False,
-        learning_rate=1e-3,
+        learning_rate=1e-4,
         weight_decay=1e-6,
         grad_clip_thresh=1.0,
         batch_size=32,
-        mask_padding=True  # set model's padded outputs to padded values
+        mask_padding=True,  # set model's padded outputs to padded values
+
+        # GST Hyperparameters
+        E = E, 
+        # ref_enc_filters=[32, 32, 64, 64, 128, 128],
+        ref_enc_filters=[16, 16, 32, 32, 64, 64],
+        ref_enc_size = [3, 3],
+        ref_enc_strides = [2, 2],
+        ref_enc_pad = [1, 1],
+        ref_enc_gru_size = E // 2,
+        num_heads = 8,
+        token_num = 10,
+        use_gst = True
+
     )
 
     if hparams_string:

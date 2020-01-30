@@ -3,6 +3,7 @@ from librosa.filters import mel as librosa_mel_fn
 from audio_processing import dynamic_range_compression
 from audio_processing import dynamic_range_decompression
 from stft import STFT
+import torch.nn.functional as F
 
 
 class LinearNorm(torch.nn.Module):
@@ -16,6 +17,26 @@ class LinearNorm(torch.nn.Module):
 
     def forward(self, x):
         return self.linear_layer(x)
+
+
+class LinearReLUBN(torch.nn.Module):
+    def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
+        super(LinearReLUBN, self).__init__()
+        self.linear_layer = torch.nn.Linear(in_dim, out_dim, bias=bias)
+        self.bn = torch.nn.BatchNorm1d(out_dim)
+
+        torch.nn.init.xavier_uniform_(
+            self.linear_layer.weight,
+            gain=torch.nn.init.calculate_gain(w_init_gain))
+
+    def forward(self, x):
+        # input shape assumed to be (L, B, C)
+        x = self.linear_layer(x)
+        L, B, C = x.shape
+        x = x.view(-1, C)
+        x = self.bn(x)
+        x = x.view(L, B, C)
+        return F.relu(x)
 
 
 class ConvNorm(torch.nn.Module):

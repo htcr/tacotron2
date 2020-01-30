@@ -3,15 +3,17 @@ import torch
 from tensorboardX import SummaryWriter
 from plotting_utils import plot_alignment_to_numpy, plot_spectrogram_to_numpy
 from plotting_utils import plot_gate_outputs_to_numpy
+import numpy as np
 
 
 class Tacotron2Logger(SummaryWriter):
     def __init__(self, logdir):
         super(Tacotron2Logger, self).__init__(logdir)
 
-    def log_training(self, reduced_loss, grad_norm, learning_rate, duration,
+    def log_training(self, reduced_loss, p, grad_norm, learning_rate, duration,
                      iteration):
             self.add_scalar("training.loss", reduced_loss, iteration)
+            self.add_scalar("p", p, iteration)
             self.add_scalar("grad.norm", grad_norm, iteration)
             self.add_scalar("learning.rate", learning_rate, iteration)
             self.add_scalar("duration", duration, iteration)
@@ -46,3 +48,7 @@ class Tacotron2Logger(SummaryWriter):
                 gate_targets[idx].data.cpu().numpy(),
                 torch.sigmoid(gate_outputs[idx]).data.cpu().numpy()),
             iteration, dataformats='HWC')
+
+    def log_audio(self, audio, sampling_rate, iteration, title='test_sentence'):
+        audio = audio.astype(np.float32) / np.max(np.abs(audio))
+        self.add_audio(title, audio.reshape(1, -1), iteration, sampling_rate)
