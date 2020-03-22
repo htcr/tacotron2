@@ -176,18 +176,20 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
             picked_mel = mels[0:1][:, :, :lens[0]].half() # (1, Nmel, L)
             
             # Select 5 speakers to eval
-            speaker_ids = [0, 200, 400, 600, 800]
-            sequences = sequence.expand(len(speaker_ids), -1) # (B, L)
-            picked_mels = picked_mel.expand(len(speaker_ids), -1, -1) # (B, Nmel, L)
+            speaker_ids = np.array([0, 200, 400, 600, 800])
+            sequences = sequence.expand(speaker_ids.shape[0], -1) # (B, L)
+            picked_mels = picked_mel.expand(speaker_ids.shape[0], -1, -1) # (B, Nmel, L)
             speaker_ids = torch.autograd.Variable(torch.from_numpy(speaker_ids)).cuda().long() # (B,)
             
-            mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequences, picked_mels, speaker_ids)
             with torch.no_grad():
-                audios = waveglow.infer(mel_outputs_postnet, sigma=0.666)
                 audio_ref = waveglow.infer(picked_mel, sigma=0.666)
             logger.log_audio(audio_ref[0].data.cpu().numpy(), sampling_rate, iteration, 'reference_audio')
-            for audio_id in range(audios.shape[0]):
-                audio_np = audios[audio_id].data.cpu().numpy() 
+            for audio_id in range(len(speaker_ids)):
+                with torch.no_grad():
+                    # TODO: Enable batch inference
+                    mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequences[audio_id:audio_id+1], picked_mels[audio_id:audio_id+1], speaker_ids[audio_id:audio_id+1])
+                    audios = waveglow.infer(mel_outputs_postnet, sigma=0.666)
+                audio_np = audios[0].data.cpu().numpy() 
                 logger.log_audio(audio_np, sampling_rate, iteration, 'speaker_{}'.format(audio_id))
 
     model.train()

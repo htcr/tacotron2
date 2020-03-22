@@ -210,7 +210,7 @@ class Decoder(nn.Module):
         self.n_mel_channels = hparams.n_mel_channels
         self.n_frames_per_step = hparams.n_frames_per_step
         if hparams.use_gst:
-            self.encoder_embedding_dim = hparams.encoder_embedding_dim + hparams.E + hparams.speaker_num
+            self.encoder_embedding_dim = hparams.encoder_embedding_dim + hparams.E + hparams.speaker_embedding_dim
         else:
             self.encoder_embedding_dim = hparams.encoder_embedding_dim
         self.attention_rnn_dim = hparams.attention_rnn_dim
