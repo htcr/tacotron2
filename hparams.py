@@ -27,7 +27,7 @@ def create_hparams(hparams_string=None, verbose=False):
         # Data Parameters             #
         ################################
         load_mel_from_disk=False,
-        training_files='filelists/librispeech_gst_with_id_eval.txt',
+        training_files='filelists/librispeech_gst_with_id_train.txt',
         validation_files='filelists/librispeech_gst_with_id_eval.txt',
         
         text_cleaners=['english_cleaners'],
