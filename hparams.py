@@ -102,7 +102,9 @@ def create_hparams(hparams_string=None, verbose=False):
         ref_enc_gru_size = E // 2,
         num_heads = 8,
         token_num = 10,
-        use_gst = True
+        use_gst = True,
+        speaker_num = 1172,
+        speaker_embedding_dim = 256
 
     )
 

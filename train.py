@@ -168,21 +168,27 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
             
             text = "We have been trying all possible solutions but none of them seemed to work."
             sequence = np.array(text_to_sequence(text, ['english_cleaners']))[None, :]
-            sequence = torch.autograd.Variable(torch.from_numpy(sequence)).cuda().long()
+            sequence = torch.autograd.Variable(torch.from_numpy(sequence)).cuda().long() # (1, L)
             
             # super dirty!!! pick a sample mel
             mels = x[2]
             lens = x[4]
             picked_mel = mels[0:1][:, :, :lens[0]].half() # (1, Nmel, L)
             
+            # Select 5 speakers to eval
+            speaker_ids = [0, 200, 400, 600, 800]
+            sequences = sequence.expand(len(speaker_ids), -1) # (B, L)
+            picked_mels = picked_mel.expand(len(speaker_ids), -1, -1) # (B, Nmel, L)
+            speaker_ids = torch.autograd.Variable(torch.from_numpy(speaker_ids)).cuda().long() # (B,)
             
-            mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequence, picked_mel)
+            mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequences, picked_mels, speaker_ids)
             with torch.no_grad():
-                audio = waveglow.infer(mel_outputs_postnet, sigma=0.666)
+                audios = waveglow.infer(mel_outputs_postnet, sigma=0.666)
                 audio_ref = waveglow.infer(picked_mel, sigma=0.666)
-            audio_np = audio[0].data.cpu().numpy() 
-            logger.log_audio(audio_np, sampling_rate, iteration)
             logger.log_audio(audio_ref[0].data.cpu().numpy(), sampling_rate, iteration, 'reference_audio')
+            for audio_id in range(audios.shape[0]):
+                audio_np = audios[audio_id].data.cpu().numpy() 
+                logger.log_audio(audio_np, sampling_rate, iteration, 'speaker_{}'.format(audio_id))
 
     model.train()
     if rank == 0:
