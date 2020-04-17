@@ -9,10 +9,10 @@ import random
 
 # Configs
 # The directory containing train-clean-100
-librispeech_root = '/hdd/klab/cmtts/data/tts/LibriSpeech'
+librispeech_root = '/scratch/jianrenw/tts/LibriSpeech'
 folders = ['train-clean-100', 'train-clean-360']
 eval_ratio = 0.05
-output_dir = '/hdd/klab/cmtts/data/tts/LibriSpeech'
+output_dir = '/scratch/jianrenw/tts/LibriSpeech'
 output_name = 'librispeech_gst_with_id'
 
 # Const strings
