@@ -9,8 +9,8 @@ class HParams(object):
         self.iters_per_checkpoint=1000
         self.seed=1234
         self.dynamic_loss_scaling=True
-        self.fp16_run=False
-        self.distributed_run=False
+        self.fp16_run=True
+        self.distributed_run=True
         self.dist_backend="nccl"
         self.dist_url="tcp://localhost:54321"
         self.cudnn_enabled=True
@@ -83,12 +83,13 @@ class HParams(object):
         #######################
         # GST Hyperparameters #
         #######################      
+        self.E = 256
         self.use_gst = True
         self.ref_enc_filters=[16, 16, 32, 32, 64, 64]
         self.ref_enc_size = [3, 3]
         self.ref_enc_strides = [2, 2]
         self.ref_enc_pad = [1, 1]
-        self.ref_enc_gru_size = 128
+        self.ref_enc_gru_size = self.E // 2
         self.num_heads = 8
         self.token_num = 10
         

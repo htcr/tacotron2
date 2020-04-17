@@ -173,7 +173,9 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
             # super dirty!!! pick a sample mel
             mels = x[2]
             lens = x[4]
-            picked_mel = mels[0:1][:, :, :lens[0]].half() # (1, Nmel, L)
+            picked_mel = mels[0:1][:, :, :lens[0]] # (1, Nmel, L)
+            if hparams.fp16_run:
+                picked_mel = picked_mel.half()
             
             # Select 5 speakers to eval
             speaker_ids = np.array([0, 200, 400, 600, 800])
@@ -198,10 +200,11 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
         logger.log_validation(val_loss, model, y, y_pred, iteration)
 
 
-def load_waveglow():
+def load_waveglow(hparams):
     waveglow_path = 'waveglow_256channels_ljs_v2.pt'
     waveglow = torch.load(waveglow_path)['model']
-    waveglow.cuda().eval().half()
+    if hparams.fp16_run:
+        waveglow.cuda().eval().half()
     for k in waveglow.convinv:
         k.float()
     return waveglow
@@ -227,7 +230,7 @@ def train(output_directory, log_directory, checkpoint_path, warm_start, n_gpus,
     torch.cuda.manual_seed(hparams.seed)
 
     # load waveglow for validation
-    waveglow = load_waveglow()
+    waveglow = load_waveglow(hparams)
 
     model = load_model(hparams)
     learning_rate = hparams.learning_rate
