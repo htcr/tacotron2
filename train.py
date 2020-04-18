@@ -177,22 +177,22 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
             if hparams.fp16_run:
                 picked_mel = picked_mel.half()
             
-            # Select 5 speakers to eval
-            speaker_ids = np.array([0, 200, 400, 600, 800])
-            sequences = sequence.expand(speaker_ids.shape[0], -1) # (B, L)
-            picked_mels = picked_mel.expand(speaker_ids.shape[0], -1, -1) # (B, Nmel, L)
-            speaker_ids = torch.autograd.Variable(torch.from_numpy(speaker_ids)).cuda().long() # (B,)
+            # Select 5 auxiliary embeddings to eval
+            aux_embedding_ids = np.random.randint(low=0, high=hparams.auxiliary_embedding_num, 5)
+            sequences = sequence.expand(aux_embedding_ids.shape[0], -1) # (B, L)
+            picked_mels = picked_mel.expand(aux_embedding_ids.shape[0], -1, -1) # (B, Nmel, L)
+            aux_embedding_ids = torch.autograd.Variable(torch.from_numpy(aux_embedding_ids)).cuda().long() # (B,)
             
             with torch.no_grad():
                 audio_ref = waveglow.infer(picked_mel, sigma=0.666)
             logger.log_audio(audio_ref[0].data.cpu().numpy(), sampling_rate, iteration, 'reference_audio')
-            for audio_id in range(len(speaker_ids)):
+            for audio_id in range(len(aux_embedding_ids)):
                 with torch.no_grad():
                     # TODO: Enable batch inference
-                    mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequences[audio_id:audio_id+1], picked_mels[audio_id:audio_id+1], speaker_ids[audio_id:audio_id+1])
+                    mel_outputs, mel_outputs_postnet, _, alignments = model.inference(sequences[audio_id:audio_id+1], picked_mels[audio_id:audio_id+1], aux_embedding_ids[audio_id:audio_id+1])
                     audios = waveglow.infer(mel_outputs_postnet, sigma=0.666)
                 audio_np = audios[0].data.cpu().numpy() 
-                logger.log_audio(audio_np, sampling_rate, iteration, 'speaker_{}'.format(audio_id))
+                logger.log_audio(audio_np, sampling_rate, iteration, 'aux_embedding_{}'.format(audio_id))
 
     model.train()
     if rank == 0:

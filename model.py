@@ -210,7 +210,7 @@ class Decoder(nn.Module):
         self.n_mel_channels = hparams.n_mel_channels
         self.n_frames_per_step = hparams.n_frames_per_step
         if hparams.use_gst:
-            self.encoder_embedding_dim = hparams.encoder_embedding_dim + hparams.E + hparams.speaker_embedding_dim
+            self.encoder_embedding_dim = hparams.encoder_embedding_dim + hparams.E + hparams.auxiliary_embedding_dim
         else:
             self.encoder_embedding_dim = hparams.encoder_embedding_dim
         self.attention_rnn_dim = hparams.attention_rnn_dim
@@ -747,8 +747,9 @@ class Tacotron2GST(nn.Module):
         self.embedding.weight.data.uniform_(-val, val)
         self.encoder = Encoder(hparams)
         # Librispeech train-clean-100+360 speaker num: 1172
-        self.speaker_embedding = nn.Embedding(hparams.speaker_num, hparams.speaker_embedding_dim)
-        self.speaker_embedding.weight.data.uniform_(-val, val)
+        # sex num: 2
+        self.auxiliary_embedding = nn.Embedding(hparams.auxiliary_embedding_num, hparams.auxiliary_embedding_dim)
+        self.auxiliary_embedding.weight.data.uniform_(-val, val)
 
         self.gst = GST(hparams)
 
@@ -757,17 +758,17 @@ class Tacotron2GST(nn.Module):
 
     def parse_batch(self, batch):
         text_padded, input_lengths, mel_padded, gate_padded, \
-            output_lengths, speaker_ids = batch
+            output_lengths, aux_embedding_ids = batch
         text_padded = to_gpu(text_padded).long()
         input_lengths = to_gpu(input_lengths).long()
         max_len = torch.max(input_lengths.data).item()
         mel_padded = to_gpu(mel_padded).float()
         gate_padded = to_gpu(gate_padded).float()
         output_lengths = to_gpu(output_lengths).long()
-        speaker_ids = to_gpu(speaker_ids).long()
+        aux_embedding_ids = to_gpu(aux_embedding_ids).long()
 
         return (
-            (text_padded, input_lengths, mel_padded, max_len, output_lengths, speaker_ids),
+            (text_padded, input_lengths, mel_padded, max_len, output_lengths, aux_embedding_ids),
             (mel_padded, gate_padded))
 
     def parse_output(self, outputs, output_lengths=None):
@@ -783,7 +784,7 @@ class Tacotron2GST(nn.Module):
         return outputs
 
     def forward(self, inputs):
-        text_inputs, text_lengths, mels, max_len, output_lengths, speaker_ids = inputs
+        text_inputs, text_lengths, mels, max_len, output_lengths, aux_embedding_ids = inputs
         text_lengths, output_lengths = text_lengths.data, output_lengths.data
 
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
@@ -796,11 +797,11 @@ class Tacotron2GST(nn.Module):
         # ref_encoder_outputs: (B, 1, num_units)
         ref_encoder_outputs_rep = ref_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
 
-        speaker_encoder_outputs = self.speaker_embedding(speaker_ids).unsqueeze(1)
-        # speaker_encoder_outputs: (B, 1, speaker_emb_size)
-        speaker_encoder_outputs_rep = speaker_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
+        aux_encoder_outputs = self.auxiliary_embedding(aux_embedding_ids).unsqueeze(1)
+        # aux_encoder_outputs: (B, 1, aux_emb_size)
+        aux_encoder_outputs_rep = aux_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
 
-        encoder_outputs_cat = torch.cat((encoder_outputs, ref_encoder_outputs_rep, speaker_encoder_outputs_rep), dim=2)
+        encoder_outputs_cat = torch.cat((encoder_outputs, ref_encoder_outputs_rep, aux_encoder_outputs_rep), dim=2)
 
         mel_outputs, gate_outputs, alignments = self.decoder(
             encoder_outputs_cat, mels, memory_lengths=text_lengths)
@@ -812,7 +813,7 @@ class Tacotron2GST(nn.Module):
             [mel_outputs, mel_outputs_postnet, gate_outputs, alignments],
             output_lengths)
 
-    def inference(self, text_inputs, mels, speaker_ids):
+    def inference(self, text_inputs, mels, aux_embedding_ids):
         embedded_inputs = self.embedding(text_inputs).transpose(1, 2)
         encoder_outputs = self.encoder.inference(embedded_inputs)
         # encoder_outputs: (B, L, emb_size)
@@ -823,11 +824,11 @@ class Tacotron2GST(nn.Module):
         # ref_encoder_outputs: (B, 1, num_units)
         ref_encoder_outputs_rep = ref_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
         
-        speaker_encoder_outputs = self.speaker_embedding(speaker_ids).unsqueeze(1)
-        # speaker_encoder_outputs: (B, 1, speaker_emb_size)
-        speaker_encoder_outputs_rep = speaker_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
+        aux_encoder_outputs = self.auxiliary_embedding(aux_embedding_ids).unsqueeze(1)
+        # aux_encoder_outputs: (B, 1, aux_emb_size)
+        aux_encoder_outputs_rep = aux_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
 
-        encoder_outputs_cat = torch.cat((encoder_outputs, ref_encoder_outputs_rep, speaker_encoder_outputs_rep), dim=2)
+        encoder_outputs_cat = torch.cat((encoder_outputs, ref_encoder_outputs_rep, aux_encoder_outputs_rep), dim=2)
         
         mel_outputs, gate_outputs, alignments = self.decoder.inference(
             encoder_outputs_cat)

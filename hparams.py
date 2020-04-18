@@ -94,10 +94,10 @@ class HParams(object):
         self.token_num = 10
         
         #####################################
-        # Speaker Embedding HyperParameters #
+        # Auxiliary Embedding HyperParameters #
         #####################################       
-        self.speaker_num = 1172
-        self.speaker_embedding_dim = 256
+        self.auxiliary_embedding_num = 2 # 1172 for clean 100+360 speaker id, 2 for sex
+        self.auxiliary_embedding_dim = 16 # 256 for speaker id, 16 for sex
         
 
 def create_hparams():

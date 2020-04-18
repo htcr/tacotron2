@@ -33,11 +33,11 @@ class TextMelLoader(torch.utils.data.Dataset):
 
     def get_mel_text_pair(self, audiopath_and_text):
         # separate filename and text
-        audiopath, text, speaker_id = audiopath_and_text[0], audiopath_and_text[1], audiopath_and_text[2]
+        audiopath, text, aux_embedding_id = audiopath_and_text[0], audiopath_and_text[1], audiopath_and_text[2]
         text = self.get_text(text)
         mel = self.get_mel(audiopath)
-        speaker_id = int(speaker_id)
-        return (text, mel, speaker_id)
+        aux_embedding_id = int(aux_embedding_id)
+        return (text, mel, aux_embedding_id)
 
     def get_mel(self, filename):
         if not self.load_mel_from_disk:
@@ -93,8 +93,8 @@ class TextMelCollate():
             text = batch[ids_sorted_decreasing[i]][0]
             text_padded[i, :text.size(0)] = text
 
-        speaker_ids = torch.LongTensor(len(batch))
-        speaker_ids.zero_()
+        aux_embedding_ids = torch.LongTensor(len(batch))
+        aux_embedding_ids.zero_()
 
         # Right zero-pad mel-spec
         num_mels = batch[0][1].size(0)
@@ -111,10 +111,10 @@ class TextMelCollate():
         output_lengths = torch.LongTensor(len(batch))
         for i in range(len(ids_sorted_decreasing)):
             sample = batch[ids_sorted_decreasing[i]]
-            speaker_ids[i] = sample[2]
+            aux_embedding_ids[i] = sample[2]
             mel = sample[1]
             mel_padded[i, :, :mel.size(1)] = mel
             gate_padded[i, mel.size(1)-1:] = 1
             output_lengths[i] = mel.size(1)
 
-        return text_padded, input_lengths, mel_padded, gate_padded, output_lengths, speaker_ids
+        return text_padded, input_lengths, mel_padded, gate_padded, output_lengths, aux_embedding_ids
