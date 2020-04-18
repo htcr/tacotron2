@@ -178,7 +178,7 @@ def validate(model, criterion, valset, iteration, batch_size, n_gpus,
                 picked_mel = picked_mel.half()
             
             # Select 5 auxiliary embeddings to eval
-            aux_embedding_ids = np.random.randint(low=0, high=hparams.auxiliary_embedding_num, 5)
+            aux_embedding_ids = np.random.randint(low=0, high=hparams.auxiliary_embedding_num, size=5)
             sequences = sequence.expand(aux_embedding_ids.shape[0], -1) # (B, L)
             picked_mels = picked_mel.expand(aux_embedding_ids.shape[0], -1, -1) # (B, Nmel, L)
             aux_embedding_ids = torch.autograd.Variable(torch.from_numpy(aux_embedding_ids)).cuda().long() # (B,)
