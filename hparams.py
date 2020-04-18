@@ -21,8 +21,8 @@ class HParams(object):
         # Data Parameters             #
         ################################
         self.load_mel_from_disk=False
-        self.training_files='filelists/librispeech_gst_with_id_train.txt'
-        self.validation_files='filelists/librispeech_gst_with_id_eval.txt'
+        self.training_files='filelists/librispeech_gst_aux_train.txt'
+        self.validation_files='filelists/librispeech_gst_aux_eval.txt'
         self.text_cleaners=['english_cleaners']
 
         ################################
