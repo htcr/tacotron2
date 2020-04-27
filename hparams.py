@@ -97,7 +97,7 @@ class HParams(object):
         # Auxiliary Embedding HyperParameters #
         #####################################       
         self.auxiliary_embedding_num = 2 # 1172 for clean 100+360 speaker id, 2 for sex
-        self.auxiliary_embedding_dim = 16 # 256 for speaker id, 16 for sex
+        self.auxiliary_embedding_dim = 128 # 256 for speaker id, 16(or 128?) for sex
         
 
 def create_hparams():

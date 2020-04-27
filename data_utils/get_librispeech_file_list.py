@@ -11,10 +11,10 @@ import enum
 # Configs
 # The directory containing train-clean-100
 librispeech_root = '/scratch/jianrenw/tts/LibriSpeech'
-folders = ['train-clean-100', 'train-clean-360']
-eval_ratio = 0.05
+folders = ['train-clean-100', 'train-clean-360', 'train-other-500']
+eval_ratio = 0.01
 output_dir = '/scratch/jianrenw/tts/LibriSpeech'
-output_name = 'librispeech_gst_with_sex'
+output_name = 'librispeech_full_gst_with_sex'
 class AuxiliaryEmbeddingType(enum.Enum):
     speaker_id = 1
     sex = 2

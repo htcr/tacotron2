@@ -732,6 +732,16 @@ class MultiHeadAttention(nn.Module):
         return out
     """
 
+class AuxliaryEmbeddingTransformer(nn.Module):
+    def __init__(self, hparams):
+        super(AuxliaryEmbeddingTransformer, self).__init__()
+        self.linear_0 = nn.Linear(in_features=hparams.auxiliary_embedding_dim, out_features=hparams.auxiliary_embedding_dim, bias=False)
+
+    def forward(self, auxiliary_embedding):
+        x = self.linear_0(auxiliary_embedding)
+        x = F.dropout(F.relu(x), p=0.5, training=self.training)
+        return x
+
 
 class Tacotron2GST(nn.Module):
     def __init__(self, hparams):
@@ -750,6 +760,7 @@ class Tacotron2GST(nn.Module):
         # sex num: 2
         self.auxiliary_embedding = nn.Embedding(hparams.auxiliary_embedding_num, hparams.auxiliary_embedding_dim)
         self.auxiliary_embedding.weight.data.uniform_(-val, val)
+        self.auxiliary_embedding_transformer = AuxliaryEmbeddingTransformer(hparams)
 
         self.gst = GST(hparams)
 
@@ -797,7 +808,7 @@ class Tacotron2GST(nn.Module):
         # ref_encoder_outputs: (B, 1, num_units)
         ref_encoder_outputs_rep = ref_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
 
-        aux_encoder_outputs = self.auxiliary_embedding(aux_embedding_ids).unsqueeze(1)
+        aux_encoder_outputs = self.auxiliary_embedding_transformer(self.auxiliary_embedding(aux_embedding_ids)).unsqueeze(1)
         # aux_encoder_outputs: (B, 1, aux_emb_size)
         aux_encoder_outputs_rep = aux_encoder_outputs.expand(-1, encoder_outputs.size(1), -1)
 
